@@ -3,25 +3,119 @@
 
 const Alexa = require('ask-sdk');
 
-const GetNewFactHandler = {
+function sleep(delay) {
+        var start = new Date().getTime();
+        while (new Date().getTime() < start + delay);
+      }
+
+// General statement with permission
+const LaunchRequestHandler = {
   canHandle(handlerInput) {
     const request = handlerInput.requestEnvelope.request;
-    return request.type === 'LaunchRequest'
-      || (request.type === 'IntentRequest'
-        && request.intent.name === 'GetNewFactIntent');
+    return request.type === 'LaunchRequest' && handlerInput.requestEnvelope.context.System.apiAccessToken;
   },
   handle(handlerInput) {
-    const factArr = data;
-    const factIndex = Math.floor(Math.random() * factArr.length);
-    const randomFact = factArr[factIndex];
-    const speechOutput = GET_FACT_MESSAGE + randomFact;
-
     return handlerInput.responseBuilder
-      .speak(speechOutput)
-      .withSimpleCard(SKILL_NAME, randomFact)
+      .speak("Welcome to Weather Mood. I can play music depending on the current weather at your location. Say something like play mood to start.")
+      .reprompt("")
       .getResponse();
   },
 };
+
+// General statement with no permission
+const NoAuthHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return !handlerInput.requestEnvelope.context.System.apiAccessToken;
+  },
+  handle(handlerInput) {  //runs if there are no permissions 
+    const permissions = ['read::alexa:device:all:address']; 
+    
+    return handlerInput.responseBuilder
+      .speak("Please set the permissions first.")
+      .withAskForPermissionsConsentCard(permissions)
+      .getResponse();
+  },
+}; 
+
+
+var songArr = [];
+var songIndex = 0.0; // = Math.floor(Math.random() * songArr.length); 
+var randomSong = null; // = songArr[songIndex];
+var songOutput = ''; // = GET_FACT_MESSAGE + randomSong;
+
+var mood = 'Happy'; 
+
+// Play the same mood as the current weather
+const GetMoodIntentHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return (request.type === 'IntentRequest' && request.intent.name === 'GetMoodIntent');
+  },
+  async handle(handlerInput) { 
+
+    // Retrieve Zip Code 
+    const serviceClientFactory = handlerInput.serviceClientFactory;
+    const { deviceId } = handlerInput.requestEnvelope.context.System.device;
+    const deviceAddressServiceClient = serviceClientFactory.getDeviceAddressServiceClient();
+    const address = await deviceAddressServiceClient.getFullAddress(deviceId);
+    const zipCode = address.postalCode; 
+    
+    
+    
+    //send zipcode to Weather API (in <stdlib>) 
+    
+    const https = require("https"); 
+    https.get("https://unitingdust.lib.id/test@dev/?zipcode=95045", (resp) => { 
+          let data = ''; 
+        
+          // A chunk of data has been recieved.
+          resp.on('data', (chunk) => {
+            data += chunk;
+          });
+        
+          // The whole response has been received. Print out the result.
+          resp.on('end', () => {
+            mood = data.replace(/['"]+/g, '');   // removes "" (double quotes)
+
+          });
+          
+  }).on("error", (err) => {
+    console.log("Error: " + err.message); 
+  }); 
+      
+    const GET_FACT_MESSAGE = "Playing a " + mood.toLowerCase() + " song"; 
+        
+      
+    switch(mood) { 
+      case "Happy": 
+        // happy song list 
+        songArr = happy; 
+        break; 
+      case "Calm": 
+        // calm song list 
+        songArr = calm; 
+        break; 
+      case "Sad": 
+        // sad song list 
+        songArr = sad; 
+        break; 
+      case "Holiday": 
+        // holiday music 
+        songArr = holiday; 
+        break; 
+    } 
+    songIndex = Math.floor(Math.random() * songArr.length); 
+    randomSong = songArr[songIndex]; 
+    songOutput = GET_FACT_MESSAGE + randomSong; 
+    
+    return handlerInput.responseBuilder 
+      .speak(songOutput + "Say \"play mood\" to listen to another song. Otherwise say \"stop\" to quit.") 
+      .reprompt("")
+      .getResponse(); 
+  
+  },
+}; 
 
 const HelpHandler = {
   canHandle(handlerInput) {
@@ -77,36 +171,59 @@ const ErrorHandler = {
   },
 };
 
+const FallbackIntentHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return request.intent.name === "AMAZON.FallbackIntent"
+  },
+  handle(handlerInput) {
+    return handlerInput.responseBuilder
+      .speak("Sorry, I can't help you with that right now. I can play you music based on the weather. Say \"play mood\" if you would like that. If not, say \"stop.\" ")
+      .reprompt("")
+      .getResponse();
+  },
+};
+
+
 const SKILL_NAME = 'Space Facts';
-const GET_FACT_MESSAGE = 'Here\'s your fact: ';
 const HELP_MESSAGE = 'You can say tell me a space fact, or, you can say exit... What can I help you with?';
 const HELP_REPROMPT = 'What can I help you with?';
 const STOP_MESSAGE = 'Goodbye!';
 
-const data = [
-  'A year on Mercury is just 88 days long.',
-  'Despite being farther from the Sun, Venus experiences higher temperatures than Mercury.',
-  'Venus rotates counter-clockwise, possibly because of a collision in the past with an asteroid.',
-  'On Mars, the Sun appears about half the size as it does on Earth.',
-  'Earth is the only planet not named after a god.',
-  'Jupiter has the shortest day of all the planets.',
-  'The Milky Way galaxy will collide with the Andromeda Galaxy in about 5 billion years.',
-  'The Sun contains 99.86% of the mass in the Solar System.',
-  'The Sun is an almost perfect sphere.',
-  'A total solar eclipse can happen once every 1 to 2 years. This makes them a rare event.',
-  'Saturn radiates two and a half times more energy into space than it receives from the sun.',
-  'The temperature inside the Sun can reach 15 million degrees Celsius.',
-  'The Moon is moving approximately 3.8 cm away from our planet every year.',
-];
+const happy = [ 
+  '<audio src="https://s3.amazonaws.com/weathersongs/HappySong.mp3" />', 
+  '<audio src="https://s3.amazonaws.com/weathersongs/HappyLovely.mp3" />'
+]; 
+
+const calm = [ 
+  '<audio src="https://s3.amazonaws.com/weathersongs/Calm2.mp3" />', 
+  '<audio src="https://s3.amazonaws.com/weathersongs/CalmThatWay.mp3" />' 
+]; 
+
+const sad = [  
+  '<audio src="https://s3.amazonaws.com/weathersongs/SadRainsong.mp3" />', 
+  '<audio src="https://s3.amazonaws.com/weathersongs/CalmPerfect.mp3" />' 
+]; 
+
+const holiday = [ 
+  '<audio src="https://s3.amazonaws.com/weathersongs/WinterWonderland.mp3" />', 
+  '<audio src="https://s3.amazonaws.com/weathersongs/MrGrinch.mp3" />' 
+]; 
 
 const skillBuilder = Alexa.SkillBuilders.standard();
 
 exports.handler = skillBuilder
   .addRequestHandlers(
-    GetNewFactHandler,
+    NoAuthHandler,
+    GetMoodIntentHandler,
+    LaunchRequestHandler,
     HelpHandler,
     ExitHandler,
-    SessionEndedRequestHandler
-  )
-  .addErrorHandlers(ErrorHandler)
+    FallbackIntentHandler,
+    SessionEndedRequestHandler 
+  ) 
+  .addErrorHandlers(ErrorHandler) 
+
+
   .lambda();
+
