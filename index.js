@@ -3,10 +3,30 @@
 
 const Alexa = require('ask-sdk');
 
-function sleep(delay) {
-        var start = new Date().getTime();
-        while (new Date().getTime() < start + delay);
-      }
+function makingAPICall(zipcode) { 
+  return new Promise(resolve => {
+     const https = require("https"); 
+      https.get("https://unitingdust.lib.id/test@dev/?zipcode=" + zipcode, (resp) => { 
+          let data = ''; 
+        
+          // A chunk of data has been recieved.
+          resp.on('data', (chunk) => {
+            data += chunk;
+          });
+        
+          // The whole response has been received. Print out the result.
+          resp.on('end', () => {
+            return resolve(data.replace(/['"]+/g, ''));   // removes "" (double quotes)
+
+          });
+          
+      }).on("error", (err) => {
+        console.log("Error: " + err.message); 
+      }); 
+    
+       
+  });
+}
 
 // General statement with permission
 const LaunchRequestHandler = {
@@ -44,7 +64,6 @@ var songIndex = 0.0; // = Math.floor(Math.random() * songArr.length);
 var randomSong = null; // = songArr[songIndex];
 var songOutput = ''; // = GET_FACT_MESSAGE + randomSong;
 
-var mood = 'Happy'; 
 
 // Play the same mood as the current weather
 const GetMoodIntentHandler = {
@@ -62,28 +81,8 @@ const GetMoodIntentHandler = {
     const zipCode = address.postalCode; 
     
     
-    
-    //send zipcode to Weather API (in <stdlib>) 
-    
-    const https = require("https"); 
-    https.get("https://unitingdust.lib.id/test@dev/?zipcode=95045", (resp) => { 
-          let data = ''; 
-        
-          // A chunk of data has been recieved.
-          resp.on('data', (chunk) => {
-            data += chunk;
-          });
-        
-          // The whole response has been received. Print out the result.
-          resp.on('end', () => {
-            mood = data.replace(/['"]+/g, '');   // removes "" (double quotes)
-
-          });
-          
-  }).on("error", (err) => {
-    console.log("Error: " + err.message); 
-  }); 
-      
+    var mood = await makingAPICall(zipCode); 
+    console.log("Mood: " + mood);
     const GET_FACT_MESSAGE = "Playing a " + mood.toLowerCase() + " song"; 
         
       
@@ -226,4 +225,3 @@ exports.handler = skillBuilder
 
 
   .lambda();
-
